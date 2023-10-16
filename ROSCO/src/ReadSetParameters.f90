@@ -95,7 +95,7 @@ CONTAINS
              LocalVar%NumBeam       = avrSWAP(2022)
              LocalVar%NumPulseGate  = avrSWAP(2023)
              LocalVar%URefLid       = avrSWAP(2024)
-             
+                          
 
              
              
@@ -256,32 +256,29 @@ CONTAINS
               LocalVar%FF_Pitch_IPC(:) = 0
              END IF
              
-              IF (.not. allocated(LocalVar%FF_Pitch_old_IPC)) THEN
-              Allocate(LocalVar%FF_Pitch_old_IPC(5))
-              LocalVar%FF_Pitch_old_IPC(:) = 0
-              END IF
+             IF (.not. allocated(LocalVar%FF_Pitch_old_IPC)) THEN
+             Allocate(LocalVar%FF_Pitch_old_IPC(5))
+             LocalVar%FF_Pitch_old_IPC(:) = 0
+             END IF
               
-              IF (.not. allocated(LocalVar%FF_Pitch_Error_IPC)) THEN
-              Allocate(LocalVar%FF_Pitch_Error_IPC(5))
-              LocalVar%FF_Pitch_Error_IPC(:) = 0
-              END IF
-              
-              IF (.not. allocated(LocalVar%FF_Pitch_Error_old_IPC)) THEN
-              Allocate(LocalVar%FF_Pitch_Error_old_IPC(5))
-              LocalVar%FF_Pitch_Error_old_IPC(:) = 0
-              END IF
-              
-              IF (.not. allocated(LocalVar%FF_PitchRate_IPC)) THEN
-              Allocate(LocalVar%FF_PitchRate_IPC(5))
-              LocalVar%FF_PitchRate_IPC(:) = 0
-              END IF
-     
+
              IF (.not. allocated(LocalVar%BeamAzimuth)) THEN
              Allocate(LocalVar%BeamAzimuth(5))
              LocalVar%BeamAzimuth(:) = 0
              END IF
-            
-                        
+                                             
+                    
+             IF (.not. allocated(LocalVar%IPC_PitComFF)) THEN
+             Allocate(LocalVar%IPC_PitComFF(3))
+             LocalVar%IPC_PitComFF(:) = 0
+             END IF
+             
+             IF (.not. allocated(LocalVar%IPC_Com_FF)) THEN
+             Allocate(LocalVar%IPC_Com_FF(3))
+             LocalVar%IPC_Com_FF(:) = 0
+             END IF
+             
+
             ! Add RoutineName to error message
             IF (ErrVar%aviFAIL < 0) THEN
                 ErrVar%ErrMsg = RoutineName//':'//TRIM(ErrVar%ErrMsg)
@@ -455,13 +452,11 @@ CONTAINS
                
                !------------ Lidar Assisted Control ------------ 
         CALL ReadEmptyLine(UnControllerParameters,CurLine)
-        CALL ParseInput(UnControllerParameters,CurLine,'FF_LPFCornerFreq',accINFILE(1),CntrPar%FF_LPFCornerFreq,ErrVar)
-        CALL ParseInput(UnControllerParameters,CurLine,'FF_IPC_LPFCornerFreq',accINFILE(1),CntrPar%FF_IPC_LPFCornerFreq,ErrVar)
-        CALL ParseInput(UnControllerParameters,CurLine,'FF_Kp',accINFILE(1),CntrPar%FF_Kp,ErrVar)
-        CALL ParseInput(UnControllerParameters,CurLine,'FF_IPC_Kp',accINFILE(1),CntrPar%FF_IPC_Kp,ErrVar)
-        CALL ParseInput(UnControllerParameters,CurLine,'Pitch_ActTime',accINFILE(1),CntrPar%Pitch_ActTime,ErrVar)
-        CALL ParseAry(UnControllerParameters, CurLine, 'Limits_15ms', CntrPar%Limits_15ms, 2, accINFILE(1), ErrVar )
-        CALL ParseAry(UnControllerParameters, CurLine, 'Limits_13ms', CntrPar%Limits_13ms, 2, accINFILE(1), ErrVar )
+        CALL ParseInput(UnControllerParameters,CurLine,'Hub_Height',accINFILE(1),CntrPar%Hub_Height,ErrVar)
+        CALL ParseInput(UnControllerParameters,CurLine,'CohWaveNum',accINFILE(1),CntrPar%CohWaveNum,ErrVar)
+        CALL ParseInput(UnControllerParameters,CurLine,'f_cutoff_IPC',accINFILE(1),CntrPar%f_cutoff_IPC,ErrVar)
+        CALL ParseInput(UnControllerParameters,CurLine,'f_delay',accINFILE(1),CntrPar%f_delay,ErrVar)
+        CALL ParseInput(UnControllerParameters,CurLine,'T_scan',accINFILE(1),CntrPar%T_scan,ErrVar)
         CALL ParseInput(UnControllerParameters,CurLine,'NumPitchCurveFF',accINFILE(1),CntrPar%NumPitchCurveFF,ErrVar)
         CALL ParseAry(UnControllerParameters,CurLine,'REWS_curve',CntrPar%REWS_curve,CntrPar%NumPitchCurveFF,accINFILE(1),ErrVar)
         CALL ParseAry(UnControllerParameters,CurLine,'Pitch_curve',CntrPar%Pitch_curve,CntrPar%NumPitchCurveFF,accINFILE(1),ErrVar)
@@ -739,13 +734,13 @@ CONTAINS
         ENDIF
         
         ! Lidar-assisted control mode
-        IF ((CntrPar%LIDAR_ControlMode < 0) .OR. (CntrPar%LIDAR_ControlMode > 3)) THEN
+        IF ((CntrPar%LIDAR_ControlMode < 0) .OR. (CntrPar%LIDAR_ControlMode > 2)) THEN
             ErrVar%aviFAIL = -1
-            ErrVar%ErrMsg  = 'LIDAR_ControlMode must be 0, 1, 2 or 3.'
+            ErrVar%ErrMsg  = 'LIDAR_ControlMode must be betweem 0 and 2.'
         ENDIF
         
         ! Lidar-assisted control mode
-        IF ((CntrPar%LIDAR_ControlMode >= 2) .AND. ((LocalVar%SensorType /= 1) .OR. (LocalVar%NumBeam == 1))) THEN
+        IF ((CntrPar%LIDAR_ControlMode >= 8) .AND. ((LocalVar%SensorType /= 1) .OR. (LocalVar%NumBeam == 1))) THEN
             ErrVar%aviFAIL = -1
             ErrVar%ErrMsg  = 'Lidar IPC control can only be used when using multiple single point beams'
         ENDIF
