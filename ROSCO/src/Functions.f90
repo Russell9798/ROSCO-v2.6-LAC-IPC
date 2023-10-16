@@ -108,9 +108,10 @@ CONTAINS
     
   
   
+
 !-------------------------------------------------------------------------------------------------------------------------------
       
-      REAL(DbKi) FUNCTION PIControllerFF(error, kp, ki, PitchError, PitchRate, minValue, maxValue, DT, I0, piP, reset, inst)
+      REAL(DbKi) FUNCTION PIControllerFF(error, kp, ki, PitchRate, minValue, maxValue, DT, I0, piP, reset, inst)
     ! PI controller, capable of accepting forward pitch rate with output saturation
 
         USE ROSCO_Types, ONLY : piParams
@@ -120,7 +121,6 @@ CONTAINS
         REAL(8), INTENT(IN)         :: error
         REAL(8), INTENT(IN)         :: kp
         REAL(8), INTENT(IN)         :: ki
-        REAL(8), INTENT(IN)         :: PitchError
         REAL(8), INTENT(IN)         :: PitchRate
         REAL(8), INTENT(IN)         :: minValue
         REAL(8), INTENT(IN)         :: maxValue
@@ -142,7 +142,8 @@ CONTAINS
             PIControllerFF = I0
         ELSE
             
-            PTerm = kp*error + kp*PitchError
+            
+            PTerm = kp*error
             piP%ITerm(inst) = piP%ITermLast(inst) + DT*ki*error + DT*PitchRate
             piP%ITerm(inst) = saturate(piP%ITerm(inst), minValue, maxValue)
             PIControllerFF = saturate(PTerm + pIP%ITerm(inst), minValue, maxValue)
@@ -153,6 +154,8 @@ CONTAINS
         
       END FUNCTION PIControllerFF
 
+      
+      
 
 !-------------------------------------------------------------------------------------------------------------------------------
     REAL(DbKi) FUNCTION PIIController(error, error2, kp, ki, ki2, minValue, maxValue, DT, I0, piP, reset, inst)
