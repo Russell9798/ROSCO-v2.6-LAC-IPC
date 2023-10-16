@@ -57,86 +57,56 @@ CONTAINS
         LocalVar%PC_KD = interp1d(CntrPar%PC_GS_angles, CntrPar%PC_GS_KD, LocalVar%PC_PitComTF, ErrVar) ! Derivative gain
         LocalVar%PC_TF = interp1d(CntrPar%PC_GS_angles, CntrPar%PC_GS_TF, LocalVar%PC_PitComTF, ErrVar) ! TF gains (derivative filter) !NJA - need to clarify
         
-        ! Compute the collective pitch command associated with the proportional and integral gains:
+        ! Compute the cut off frequency for FF control based on the coherent wave number and the reference average wind speed:
+        LocalVar%f_cutoff = (CntrPar%CohWaveNum*LocalVar%URefLid)/(2*Pi)
+        LocalVar%w_cutoff = LocalVar%URefLid*CntrPar%CohWaveNum
         
-      
         
- ! Compute the collective pitch command associated with the proportional and integral gains:
+       ! Compute the collective pitch command associated with the proportional and integral gains:
       
         IF (LocalVar%iStatus == 0) THEN
              LocalVar%PC_PitComT = PIController(LocalVar%PC_SpdErr, LocalVar%PC_KP, LocalVar%PC_KI, LocalVar%PC_MinPit, LocalVar%PC_MaxPit, LocalVar%DT, LocalVar%BlPitch(1), LocalVar%piP, LocalVar%restart, objInst%instPI)
-             LocalVar%REWS_f(1)    = LPFilter(LocalVar%LidSpeed(1), LocalVar%DT, CntrPar%FF_LPFCornerFreq, LocalVar%FP, LocalVar%iStatus, .TRUE., objInst%instLPF)
-             LocalVar%FF_Pitch_Error_old = 0
-             LocalVar%FF_PitchRate = 0
-             
-            
+             LocalVar%REWS_f(1)    = LPFilter(LocalVar%LidSpeed(1), LocalVar%DT, LocalVar%w_cutoff, LocalVar%FP, LocalVar%iStatus, .TRUE., objInst%instLPF)
+             LocalVar%FF_PitchRate = 0    
         ELSE
-            IF ((CntrPar%LIDAR_ControlMode == 1) .OR. (CntrPar%LIDAR_ControlMode == 3))  THEN
+            IF (CntrPar%LIDAR_ControlMode >= 1)  THEN             
                 
-               
+                CALL LidarConfiguration(LocalVar, CntrPar, objInst)                
                 
-                 CALL LidarConfiguration(LocalVar, CntrPar, objInst) 
-                 
-               
-                
-                IF ((CntrPar%LIDAR_ControlMode == 3) .AND. (ABS(LocalVar%MsrPosition(2,1) > 20))) THEN
+                IF ((CntrPar%LIDAR_ControlMode == 2) .AND. (ABS(LocalVar%MsrPosition(2,1) > 20))) THEN
                                 ErrVar%aviFAIL = -1
                                 ErrVar%ErrMsg  = 'When using combined LIDAR CPC and IPC, the first measurement point must be focussed directly ahead of the LIDAR. Ensure the Y coordinate is less than +/- 20 m'
-                END IF
-                  
-                IF ((CntrPar%LIDAR_ControlMode == 3) .AND. (ABS(LocalVar%MsrPosition(3,1)-150) > 20)) THEN    !NEED TO INCLUDE HUB HEIGHT Variable in AVRSWAP
-                                ErrVar%aviFAIL = -1
-                                ErrVar%ErrMsg  = 'When using combined LIDAR CPC and IPC, the first measurement point must be focussed directly ahead of the LIDAR. Ensure the Z coordinate is less than +/- 20 m'
-                END IF
-              
+                END IF                           
             
-                CALL FeedforwardCPC(LocalVar, CntrPar, objInst, ErrVar)  
-                
-         
-                
-                      LocalVar%PC_PitComT = PIControllerFF(LocalVar%PC_SpdErr, LocalVar%PC_KP, LocalVar%PC_KI, LocalVar%FF_Pitch_Error, LocalVar%FF_PitchRate, LocalVar%PC_MinPit, LocalVar%PC_MaxPit, LocalVar%DT, LocalVar%BlPitch(1), LocalVar%piP, .FALSE., objInst%instPI)          
-                      LocalVar%PC_PitComT = LocalVar%PC_PitComT +  LocalVar%PC_PitComFF       
-
-            ELSE 
-           
-                 
-                LocalVar%PC_PitComT = PIController(LocalVar%PC_SpdErr, LocalVar%PC_KP, LocalVar%PC_KI,LocalVar%PC_MinPit, LocalVar%PC_MaxPit, LocalVar%DT, LocalVar%BlPitch(1), LocalVar%piP, .FALSE., objInst%instPI)
-           
-          END IF 
-             
-       
-            
-                  
-                       
-        END IF
+                CALL FeedforwardCPC(LocalVar, CntrPar, DebugVar, objInst, ErrVar)  
+                     LocalVar%PC_PitComT = PIControllerFF(LocalVar%PC_SpdErr, LocalVar%PC_KP, LocalVar%PC_KI, LocalVar%FF_PitchRate, LocalVar%PC_MinPit, LocalVar%PC_MaxPit, LocalVar%DT, LocalVar%BlPitch(1), LocalVar%piP, .FALSE., objInst%instPI)      
+            ELSE
+                     LocalVar%PC_PitComT = PIController(LocalVar%PC_SpdErr, LocalVar%PC_KP, LocalVar%PC_KI,LocalVar%PC_MinPit, LocalVar%PC_MaxPit, LocalVar%DT, LocalVar%BlPitch(1), LocalVar%piP, .FALSE., objInst%instPI)
+            END IF 
+                          
+         END IF
          DebugVar%PC_PICommand = LocalVar%PC_PitComT
          
         ! Find individual pitch control contribution
         IF ((CntrPar%IPC_ControlMode >= 1) .OR. (CntrPar%Y_ControlMode == 2)) THEN
+            
             CALL IPC(CntrPar, LocalVar, objInst, DebugVar, ErrVar)
             
-            IF (CntrPar%LIDAR_ControlMode > 1) THEN
+            IF (CntrPar%LIDAR_ControlMode == 2) THEN
                 
-     
-            
                 CALL LidarConfiguration(LocalVar, CntrPar, objInst)
-                
-       
-                CALL FeedforwardIPC(LocalVar, CntrPar, objInst, ErrVar)     
+                CALL FeedforwardIPC(LocalVar, CntrPar, DebugVar, objInst, ErrVar)     
             
-                LocalVar%IPC_PitComF = LocalVar%IPC_PitComF + LocalVar%IPC_PitComFF
+                LocalVar%IPC_PitComF = LocalVar%IPC_PitComF + LocalVar%IPC_Com_FF
                 
             END IF
             
-        ELSEIF ((CntrPar%LIDAR_ControlMode > 1) .AND. ((CntrPar%IPC_ControlMode == 0) .AND. (CntrPar%Y_ControlMode == 0)))  THEN
-               
-            
-               CALL LidarConfiguration(LocalVar, CntrPar, objInst) 
-               CALL FeedforwardIPC(LocalVar, CntrPar, objInst, ErrVar)  
-               
-                   
-            LocalVar%IPC_PitComF =  LocalVar%IPC_PitComFF
-            
+        ELSEIF ((CntrPar%LIDAR_ControlMode == 2) .AND. ((CntrPar%IPC_ControlMode == 0) .AND. (CntrPar%Y_ControlMode == 0)))  THEN
+                                   
+             CALL LidarConfiguration(LocalVar, CntrPar, objInst)   
+             CALL FeedforwardIPC(LocalVar, CntrPar, DebugVar, objInst, ErrVar)  
+
+              LocalVar%IPC_PitComF =  LocalVar%IPC_Com_FF
                      
         ELSE   
             LocalVar%IPC_PitComF = 0.0 ! THIS IS AN ARRAY!!
@@ -439,14 +409,15 @@ CONTAINS
     
   !-------------------------------------------------------------------------------------------------------------------------------
     
-     SUBROUTINE FeedForwardCPC(LocalVar, CntrPar, objInst, ErrVar)
+     SUBROUTINE FeedForwardCPC(LocalVar, CntrPar, DebugVar, objInst, ErrVar)
     ! Rescontruct rotor effective wind speed based on lidar line-of-sight measurement
     
-        USE ROSCO_Types, ONLY : ControlParameters, LocalVariables, ObjectInstances, ErrorVariables
+        USE ROSCO_Types, ONLY : ControlParameters, LocalVariables, DebugVariables, ObjectInstances, ErrorVariables
         
        ! REAL(C_FLOAT), INTENT(INOUT) :: avrSWAP(*)   ! The swap array, used to pass data to, and receive data from, the DLL controller.
         TYPE(LocalVariables), INTENT(INOUT)         :: LocalVar
         TYPE(ControlParameters), INTENT(INOUT)         :: CntrPar
+        TYPE(DebugVariables),    INTENT(INOUT)      :: DebugVar
         TYPE(ObjectInstances), INTENT(INOUT)        :: objInst
         TYPE(ErrorVariables), INTENT(INOUT)        :: ErrVar
         INTEGER(4)                                   :: iBuffer
@@ -455,81 +426,63 @@ CONTAINS
    
         
         !--------- Shift the filter and Time in the buffer and assign new values -------------------------
-         
+  
        LocalVar%REWS_f(2:LocalVar%MaxBufferStep_REWS) = LocalVar%REWS_f(1:LocalVar%MaxBufferStep_REWS-1)
-       LocalVar%REWS_f_Time(2:LocalVar%MaxBufferStep_REWS) = LocalVar%REWS_f_Time(1:LocalVar%MaxBufferStep_REWS-1)
-       
-       
-        
-                    
-       LocalVar%REWS_f(1)    = LPFilter(LocalVar%LidSpeed(1), LocalVar%DT, CntrPar%FF_LPFCornerFreq, LocalVar%FP, LocalVar%iStatus, .FALSE., objInst%instLPF)
-       LocalVar%LeadTime_1   =  (-LocalVar%MsrPosition(1,1))/LocalVar%REWS_f(1)
-       
-       
-       
+       LocalVar%REWS_f_Time(2:LocalVar%MaxBufferStep_REWS) = LocalVar%REWS_f_Time(1:LocalVar%MaxBufferStep_REWS-1)     
+       LocalVar%REWS_f(1)    = LPFilter(LocalVar%LidSpeed(1), LocalVar%DT, LocalVar%w_cutoff, LocalVar%FP, LocalVar%iStatus, .FALSE., objInst%instLPF)   
+       LocalVar%LeadTime_1   =  (-LocalVar%MsrPosition(1,1))/LocalVar%URefLid
        LocalVar%REWS_f_time(1) = LocalVar%LeadTime_1 + LocalVar%Time
-      
-           
-        !---------timing  Get the buffer ID that has the time closest to the pitch action time
-     
+       LocalVar%w_delay = 2*Pi*CntrPar%f_delay
+       LocalVar%w_n = LocalVar%w_delay/LocalVar%w_cutoff
+       LocalVar%T_filter = ATAN(LocalVar%w_n)/LocalVar%w_delay       
+       LocalVar%w_cutoff_PA = CntrPar%PA_CornerFreq*2*Pi
+       LocalVar%w_n_PA = LocalVar%w_delay/LocalVar%w_cutoff_PA
+       LocalVar%T_PA = ATAN((2**(1/2)*LocalVar%w_n_PA)/(1-LocalVar%w_n_PA**2))/LocalVar%w_delay
+       LocalVar%T_buffer = LocalVar%LeadTime_1 - LocalVar%T_filter - LocalVar%T_PA - CntrPar%T_scan/2
        
-
-      
-       IND_Time   =  ABS(LocalVar%REWS_f_Time - LocalVar%Time - CntrPar%Pitch_ActTime)    ! This determines the time that needs to be matched to the wind speed record
+       !---------timing  Get the buffer ID that has the time closest to the pitch action time
+       IND_Time   =  ABS(LocalVar%REWS_f_Time - LocalVar%Time - LocalVar%T_filter - LocalVar%T_PA - CntrPar%T_scan/2)    ! This determines the time that needs to be matched to the wind speed record
        It          = INT(MINLOC(IND_Time, 1))                                             ! This determines the position  in the RES array that needs to be called
        LocalVar%REWS_b  = LocalVar%REWS_f(It)                                             !REWS_b is the wind speed AT the desired time
-       LocalVar%FF_Pitch = interp1d(CntrPar%REWS_curve,CntrPar%Pitch_curve, LocalVar%REWS_b, ErrVar)
-       LocalVar%FF_Pitch_Error  = LocalVar%FF_Pitch - (LocalVar%BlPitch(1)+ LocalVar%BlPitch(2)+ LocalVar%BlPitch(3))/3
-       LocalVar%PC_PitComFF = CntrPar%FF_Kp*LocalVar%FF_Pitch_Error    
-             
+       LocalVar%FF_Pitch = interp1d(CntrPar%REWS_curve,CntrPar%Pitch_curve, LocalVar%REWS_b, ErrVar)   
+       LocalVar%FF_PitchRate = (LocalVar%FF_Pitch-LocalVar%FF_Pitch_old)/LocalVar%DT    
+       LocalVar%FF_Pitch_old = LocalVar%FF_Pitch
        
-!---------- Limit feedforward pitch action depending on wind speed conditions ----------------------
-        
-     IF (LocalVar%URefLid > 15) THEN
-            
-             IF ((LocalVar%REWS_b <= 15) .AND. (LocalVar%REWS_b > 13) ) THEN
-                  LocalVar%FF_Pitch_Error = saturate(LocalVar%FF_Pitch_Error, CntrPar%Limits_15ms(1), CntrPar%Limits_15ms(2)) 
-             ELSE IF (LocalVar%REWS_b <= 13) THEN
-                  LocalVar%FF_Pitch_Error = saturate(LocalVar%FF_Pitch_Error, CntrPar%Limits_13ms(1),CntrPar%Limits_13ms(2)) 
-            END IF
-        
-     ELSEIF ((LocalVar%URefLid <= 15) .AND. (LocalVar%URefLid > 13) ) THEN
-                  LocalVar%FF_Pitch_Error = saturate(LocalVar%FF_Pitch_Error, CntrPar%Limits_15ms(1), CntrPar%Limits_15ms(2)) 
-             IF (LocalVar%REWS_b < 13 ) THEN
-                  LocalVar%FF_Pitch_Error = saturate(LocalVar%FF_Pitch_Error, CntrPar%Limits_13ms(1), CntrPar%Limits_13ms(2))
-            END IF
-     
-     ELSE IF ((LocalVar%URefLid <= 13)) THEN
-                 LocalVar%FF_Pitch_Error = saturate(LocalVar%FF_Pitch_Error,  CntrPar%Limits_13ms(1),CntrPar%Limits_13ms(2))  
-     END IF
-        
-!--------- Determine Pitch Rate ---------------------------------------------
-        
-        
-        LocalVar%FF_PitchRate = (LocalVar%FF_Pitch_Error-LocalVar%FF_Pitch_Error_old)/LocalVar%DT
-        LocalVar%FF_Pitch_Error_old = LocalVar%FF_Pitch_Error
-        
+       !IF  (LocalVar%REWS_b < 13) THEN
+       !LocalVar%FF_PitchRate = 0
+       !END IF
+              
+       DebugVar%REWS = LocalVar%LidSpeed(1)
+       DebugVar%T_buffer = LocalVar%T_buffer
+       DebugVar%f_cutoff = LocalVar%f_cutoff
+       DebugVar%REWS_f = LocalVar%REWS_f(1)
+       DebugVar%T_filter  = LocalVar%T_filter
+       DebugVar%T_PA  = LocalVar%T_PA
+       DebugVar%REWS_b = LocalVar%REWS_b
+       DebugVar%FF_PitchRate = LocalVar%FF_PitchRate           
      
     END SUBROUTINE FeedForwardCPC  
     
  !-------------------------------------------------------------------------------------------------------------------------------
      
     
-     SUBROUTINE FeedForwardIPC(LocalVar, CntrPar, objInst, ErrVar)
+     SUBROUTINE FeedForwardIPC(LocalVar, CntrPar, DebugVar, objInst, ErrVar)
     ! Rescontruct rotor effective wind speed based on lidar line-of-sight measurement
     
-        USE ROSCO_Types, ONLY : ControlParameters, LocalVariables, ObjectInstances, ErrorVariables
+        USE ROSCO_Types, ONLY : ControlParameters, LocalVariables, DebugVariables, ObjectInstances, ErrorVariables
         
        ! REAL(C_FLOAT), INTENT(INOUT) :: avrSWAP(*)   ! The swap array, used to pass data to, and receive data from, the DLL controller.
         TYPE(LocalVariables), INTENT(INOUT)         :: LocalVar
         TYPE(ControlParameters), INTENT(INOUT)         :: CntrPar
         TYPE(ObjectInstances), INTENT(INOUT)        :: objInst
+        TYPE(DebugVariables), INTENT(INOUT)        :: DebugVar
         TYPE(ErrorVariables), INTENT(INOUT)        :: ErrVar
         INTEGER(4)                                   :: iBuffer
-        REAL(8), DIMENSION(:,:), ALLOCATABLE         :: IND_Time
+        REAL(8), DIMENSION(:,:), ALLOCATABLE         :: IND_Time_IPC
         INTEGER(4)                                   :: It
         INTEGER(4)                                   :: IBeam 
         INTEGER(4)                                   :: I
+        INTEGER(4)                                   :: ISample
         INTEGER(4)                                   :: k
         INTEGER(4)                                   :: LoopStart
         
@@ -538,101 +491,66 @@ CONTAINS
         REAL(8), DIMENSION(:), ALLOCATABLE           :: AzimuthDiff
         REAL(8), DIMENSION(:), ALLOCATABLE           :: BeamAzimuth
         INTEGER(4)                                   :: BeamID
+        INTEGER(4)                                   :: RollAvgSamp = 160
         
-          
-       
-       IF  (ABS(LocalVar%MsrPosition(2,1) < 20) .AND. (ABS(LocalVar%MsrPosition(3,1)-150) < 20)) THEN
-           
+         
+       IF  (ABS(LocalVar%MsrPosition(2,1) < 20) .AND. (ABS(LocalVar%MsrPosition(3,1)-CntrPar%Hub_Height) < 20)) THEN   
            LoopStart = 2
        ELSE 
-           LoopStart = 1
-          
+           LoopStart = 1      
        END IF
-         
-        DO  IBeam = LoopStart, LocalVar%NumBeam
-        
-        !--------- Shift the filter and Time in the buffer and assign new values -------------------------
-         
+       
+       DO  IBeam = LoopStart, LocalVar%NumBeam    
+       !--------- Shift the filter and Time in the buffer and assign new values -------------------------   
        LocalVar%REWS_f_IPC(2:LocalVar%MaxBufferStep_REWS, IBeam) = LocalVar%REWS_f_IPC(1:LocalVar%MaxBufferStep_REWS-1, IBeam)
        LocalVar%REWS_f_Time_IPC(2:LocalVar%MaxBufferStep_REWS, IBeam) = LocalVar%REWS_f_Time_IPC(1:LocalVar%MaxBufferStep_REWS-1, IBeam)
-        
-        
-       LocalVar%REWS_f_IPC(1, IBeam)       = LPFilter(LocalVar%LidSpeed(IBeam), LocalVar%DT, CntrPar%FF_LPFCornerFreq, LocalVar%FP, LocalVar%iStatus, .FALSE., objInst%instLPF)
-       LocalVar%LeadTime_1_IPC(IBeam)   =  (-LocalVar%MsrPosition(1,IBeam))/LocalVar%REWS_f(1)
-        
-       
+       LocalVar%REWS_f_IPC(1, IBeam)       = LPFilter(LocalVar%LidSpeed(IBeam), LocalVar%DT, LocalVar%w_cutoff, LocalVar%FP, LocalVar%iStatus, .FALSE., objInst%instLPF)
+       LocalVar%LeadTime_1_IPC(IBeam)   =  (-LocalVar%MsrPosition(1,IBeam))/LocalVar%URefLid     
        LocalVar%REWS_f_time_IPC(1,IBeam) = LocalVar%LeadTime_1_IPC(IBeam) + LocalVar%Time
-      
-      
-          
-          
-        !---------timing  Get the buffer ID that has the time closest to the pitch action time
-       
-     
-       IND_Time(:,IBeam)    =  ABS(LocalVar%REWS_f_Time_IPC(:,IBeam) - LocalVar%Time - CntrPar%Pitch_ActTime)    ! This determines the time that needs to be matched to the wind speed record
-       It                   =  INT(MINLOC(IND_Time(:,IBeam), 1))                                            ! This determines the position in the RES array that needs to be called
-       
-       LocalVar%REWS_b_IPC(IBeam)  = LocalVar%REWS_f_IPC(It, IBeam)                                             !REWS_b is the wind speed AT the desired time
- 
-        
-       
-       LocalVar%FF_Pitch_IPC(IBeam) = interp1d(CntrPar%REWS_curve,CntrPar%Pitch_curve, LocalVar%REWS_b_IPC(IBeam), ErrVar)
- 
-
-      
-       
-       !--------Determine the current azimuth position of the blades
-       
-       DO I=1,LocalVar%NumBl
-           
-       
-           
-          BlAzimuth = MODULO(LocalVar%Azimuth + (2*Pi*(I-1))/LocalVar%NumBl, 2*Pi)
-          
-        
-             
-       !-------Anticipate the blade azimuth positions after the preview time based on the rotor speed
-       
-          BlAzimuth_New = MODULO(BlAzimuth + (LocalVar%Rotspeed * CntrPar%Pitch_ActTime), 2*Pi)
-          
- 
-          
-             AzimuthDiff = LocalVar%BeamAzimuth(LoopStart:5) - BlAzimuth_New
-          
-     
-          
-             BeamID = INT(MINLOC(ABS(AzimuthDiff), 1))
-          
+       LocalVar%w_delay = 2*Pi*CntrPar%f_delay
+       LocalVar%w_cutoff_IPC = 2*Pi*CntrPar%f_cutoff_IPC
+       LocalVar%w_n_IPC = LocalVar%w_delay/LocalVar%w_cutoff_IPC
+       LocalVar%T_filter_IPC = ATAN(LocalVar%w_n_IPC)/LocalVar%w_delay
          
-             
-             IF(LoopStart == 2) THEN
-          
-              LocalVar%IPC_PitComFF(I) =  LocalVar%FF_Pitch_IPC(BeamID+1) - (LocalVar%BlPitch(1)+ LocalVar%BlPitch(2)+ LocalVar%BlPitch(3))/3
-           
-             ELSE   
-                 
-              LocalVar%IPC_PitComFF(I) =  LocalVar%FF_Pitch_IPC(BeamID) - (LocalVar%BlPitch(1)+ LocalVar%BlPitch(2)+ LocalVar%BlPitch(3))/3
+        !---------timing  Get the buffer ID that has the time closest to the pitch action time
+       IND_Time_IPC(:,IBeam)    =  ABS(LocalVar%REWS_f_Time_IPC(:,IBeam) - LocalVar%Time - LocalVar%T_filter - LocalVar%T_filter_IPC -  LocalVar%T_PA - CntrPar%T_scan/2)    ! This determines the time that needs to be matched to the wind speed record
+       It                   =  INT(MINLOC(IND_Time_IPC(:,IBeam), 1))                                            ! This determines the position in the REWS array that needs to be called
+       
+       LocalVar%REWS_b_IPC(IBeam)  = LocalVar%REWS_f_IPC(It, IBeam)                                             !REWS_b is the wind speed AT the desired time   
+       LocalVar%FF_Pitch_IPC(IBeam) = interp1d(CntrPar%REWS_curve,CntrPar%Pitch_curve, LocalVar%REWS_b_IPC(IBeam), ErrVar)
               
-             ENDIF
-             
-             
- 
-             
-             LocalVar%IPC_PitComFF(I) = LPFilter(LocalVar%IPC_PitComFF(I), LocalVar%DT, CntrPar%FF_IPC_LPFCornerFreq, LocalVar%FP, LocalVar%iStatus, .FALSE., objInst%instLPF) * CntrPar%FF_IPC_Kp
-     
+       !--------Determine the current azimuth position of the blades
+       DO I=1,LocalVar%NumBl   
+            BlAzimuth = MODULO(LocalVar%Azimuth + (2*Pi*(I-1))/LocalVar%NumBl, 2*Pi)        
+       !-------Anticipate the blade azimuth positions after the preview time based on the rotor speed  
+            BlAzimuth_New = MODULO(BlAzimuth + (LocalVar%Rotspeed * LocalVar%T_filter_IPC), 2*Pi)  
+            AzimuthDiff = LocalVar%BeamAzimuth(LoopStart:5) - BlAzimuth            
+            BeamID = INT(MINLOC(ABS(AzimuthDiff), 1))
+                   
+         IF(LoopStart == 2) THEN
+            LocalVar%IPC_PitComFF(I) =  LocalVar%FF_Pitch_IPC(BeamID+1) - (LocalVar%BlPitch(1)+ LocalVar%BlPitch(2)+ LocalVar%BlPitch(3))/3              
+         ELSE           
+           LocalVar%IPC_PitComFF(I) =  LocalVar%FF_Pitch_IPC(BeamID) - (LocalVar%BlPitch(1)+ LocalVar%BlPitch(2)+ LocalVar%BlPitch(3))/3      
+         ENDIF
+                  
+           LocalVar%IPC_Com_FF(I) = LPFilter(LocalVar%IPC_PitComFF(I), LocalVar%DT, LocalVar%w_cutoff_IPC, LocalVar%FP, LocalVar%iStatus, .FALSE., objInst%instLPF)
+           
+           DebugVar%T_filter_IPC = LocalVar%T_filter_IPC 
+           DebugVar%IPC_Com_1 = LocalVar%IPC_PitComFF(1)
+           DebugVar%IPC_Com_2 = LocalVar%IPC_PitComFF(2)
+           DebugVar%IPC_Com_3 = LocalVar%IPC_PitComFF(3)
+           DebugVar%IPC_Com_1_f = LocalVar%IPC_Com_FF(1)
+           DebugVar%IPC_Com_2_f = LocalVar%IPC_Com_FF(2)
+           DebugVar%IPC_Com_3_f = LocalVar%IPC_Com_FF(3)
                           
        END DO
        END DO
 
+       
      
     END SUBROUTINE FeedForwardIPC 
     
- !-------------------------------------------------------------------------------------------------------------------------------  
-     
-     
-     
-     
-    
+   
 !-------------------------------------------------------------------------------------------------------------------------------
     SUBROUTINE IPC(CntrPar, LocalVar, objInst, DebugVar, ErrVar)
         ! Individual pitch control subroutine
@@ -715,6 +633,7 @@ CONTAINS
             
             LocalVar%IPC_PitComF(K) = PitComIPCF(K)
         END DO
+
 
         ! debugging
         DebugVar%axisTilt_1P = axisTilt_1P
