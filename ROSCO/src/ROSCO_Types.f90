@@ -124,17 +124,17 @@ TYPE, PUBLIC :: ControlParameters
     REAL(DbKi)                    :: VS_MaxOMTq                  ! Maximum torque at the end of the below-rated region 2, [Nm]
     REAL(DbKi)                    :: VS_MinOMTq                  ! Minimum torque at the beginning of the below-rated region 2, [Nm]
     INTEGER(4)                    :: LIDAR_ControlMode                  ! Flag of lidar assisted Pitch forward control
-    REAL(8)                             :: FF_LPFCornerFreq             ! Corner frequency (-3dB point) in the low-pass filters, [rad/s]
-    REAL(8)                             :: FF_IPC_LPFCornerFreq         ! Corner frequency (-3dB point) in the low-pass filters, [rad/s]
-    REAL(8)                             :: FF_Kp                        ! Gain of the FF IPC commands
-    REAL(8)                             :: FF_IPC_Kp                    ! Gain of the FF IPC commands
-    REAL(8)                             :: Pitch_ActTime                ! The pitch act time in second
-    REAL(DbKi), DIMENSION(:), ALLOCATABLE     :: Limits_15ms                  ! 
-    REAL(DbKi), DIMENSION(:), ALLOCATABLE     :: Limits_13ms                  ! 
+    REAL(8)                             :: Hub_Height                ! Turbine hub height
+    REAL(8)                             :: CohWaveNum
+    REAL(8)                             :: f_cutoff_IPC                 ! Corner frequency (-3dB point) in the low-pass filters, [rad/s]
+    REAL(8)                             :: f_delay                     !
+    REAL(8)                             :: T_scan                      !
     INTEGER(4)                          :: NumPitchCurveFF              ! Number of points in the steady state pitch curve
     REAL(8), DIMENSION(:), ALLOCATABLE  :: REWS_curve                   ! REWS Curve
     REAL(8), DIMENSION(:), ALLOCATABLE  :: Pitch_curve                  ! Pitch Curve
 END TYPE ControlParameters
+
+
 
 TYPE, PUBLIC :: WE
     REAL(DbKi)                    :: om_r                        ! Estimated rotor speed [rad/s]
@@ -272,39 +272,38 @@ TYPE, PUBLIC :: LocalVariables
            ! ---------- LIDAR variables ---------- 
     INTEGER(4)                         :: MaxBufferStep = 20           ! the maximum buffer steps for store the u_est
     INTEGER(4)                         :: MaxBufferStep_REWS = 2000    ! the maximum buffer steps for store the REWS, 25 second for a 80Hz 
-    REAL(8)                             :: NumPulseGate              ! number of gates in each lidar beam (pulsed lidar) received from the Discon.in  just need to cross check with GatesPerBeam from the avrSWAP
-    INTEGER(4)                          :: NewLidarMeasurement               ! Flag whether it is a successful new measurement
-    INTEGER(4)                          :: URefLid                    ! Reference average wind speed for the lidar [m/s]
-    REAL(8)                             :: LidSpeed(5)                           ! Line-of-sight wind speeds measurement [m/s]
-    REAL(8)                             :: LidSpeed_F(5)                         ! Line-of-sight wind speeds measurement [m/s]
-    REAL(8)                             :: MsrPositionsX(5)                        ! X direction lidar measurement coordinates [m]
-    REAL(8)                             :: MsrPositionsY(5)                         ! Y direction lidar measurement coordinates [m]
-    REAL(8)                             :: MsrPositionsZ(5)                         ! Z direction lidar measurement coordinates [m]
-    REAL(8), DIMENSION(:,:), ALLOCATABLE  :: MsrPosition                           ! XYZ Coordinates of measurement position [m] 
-    REAL(8)                             :: SensorType                            ! Lidar sensor type
-    REAL(8)                             :: NumBeam                               ! Number of beams
-    REAL(8), DIMENSION(:), ALLOCATABLE  :: BeamAzimuth                           ! Rotor azimuth of the Lidar beams
-    REAL(8)                             :: PulseSpacing                          ! Distance between range gates
-    REAL(8), DIMENSION(:), ALLOCATABLE  :: REWS_f                       ! Low pass filtered rotor effective wind speed,  estimated by lidar for feed-forward control, with a buffer size [m/s]    
-    REAL(8)                             :: REWS_Filtered
-    REAL(8)                             :: REWS_b                       ! filterd and buffered Rotor effective wind speed [m/s]
-    REAL(8), DIMENSION(:), ALLOCATABLE  :: REWS_f_Time                  ! Rotor effective wind speed,  buffer time[s] 
-     REAL(8)                             :: AveWin_T                     ! The time average window size in second
-    REAL(8)                             :: LeadTime_1                   ! The leading time of the first measurement plane
-    REAL(8)                             :: FF_Pitch                     !the pitch of feed forwad control
-    REAL(8)                             :: FF_Pitch_old                 !the previous pitch of feed forwad control
-    REAL(8)                             :: FF_Pitch_Error                 !the error between the pitch of feed forwad control and the current blade pitch
-    REAL(8)                             :: FF_Pitch_Error_old                 !the previous pitch of feed forward control
-    REAL(8)                             :: FF_PitchRate                 !the pitch rate of feed forward control
-    REAL(8)                             :: FF_Kp                       !Feedforward controller gain
-    REAL(8)                             :: PC_PitComFF                    !feedforward pitch command
-    INTEGER(4)                           :: AvrIndex_REWS
-    INTEGER(4)                           :: AvrIndex_REWS_b
-    INTEGER(4)                           :: AvrIndex_REWS_f
-    INTEGER(4)                           :: AvrIndex_FF_PitchRate
-    INTEGER(4)                           :: AvrIndex_REWS_leadtime 
-    
-    
+    REAL(8)                             :: NumPulseGate                ! number of gates in each lidar beam (pulsed lidar) received from the Discon.in  just need to cross check with GatesPerBeam from the avrSWAP
+    INTEGER(4)                          :: NewLidarMeasurement         ! Flag whether it is a successful new measurement
+    INTEGER(4)                          :: URefLid                     ! Reference average wind speed for the lidar [m/s]
+    REAL(8)                             :: LidSpeed(5)                 ! Line-of-sight wind speeds measurement [m/s]
+    REAL(8)                             :: LidSpeed_F(5)               ! Line-of-sight wind speeds measurement [m/s]
+    REAL(8)                             :: MsrPositionsX(5)            ! X direction lidar measurement coordinates [m]
+    REAL(8)                             :: MsrPositionsY(5)            ! Y direction lidar measurement coordinates [m]
+    REAL(8)                             :: MsrPositionsZ(5)            ! Z direction lidar measurement coordinates [m]
+    REAL(8), DIMENSION(:,:), ALLOCATABLE  :: MsrPosition               ! XYZ Coordinates of measurement position [m] 
+    REAL(8)                             :: SensorType                  ! Lidar sensor type
+    REAL(8)                             :: NumBeam                     ! Number of beams
+    REAL(8), DIMENSION(:), ALLOCATABLE  :: BeamAzimuth                 ! Rotor azimuth of the Lidar beams [rad]
+    REAL(8)                             :: PulseSpacing                ! Distance between range gates
+    REAL(8), DIMENSION(:), ALLOCATABLE  :: REWS_f                      ! Low pass filtered rotor effective wind speed,  estimated by lidar for feed-forward control, with a buffer size [m/s]    
+    REAL(8)                             :: REWS_b                      ! filtered and buffered Rotor effective wind speed [m/s]
+    REAL(8), DIMENSION(:), ALLOCATABLE  :: REWS_f_Time                 ! Rotor effective wind speed,  buffer time[s] 
+    REAL(8)                             :: LeadTime_1                  ! The leading time of the first measurement plane [s]
+    REAL(8)                             :: FF_Pitch                    ! The pitch of feed forwad control [rad]
+    REAL(8)                             :: FF_Pitch_old                ! The previous pitch of feed forwad control [rad]
+    REAL(8)                             :: FF_PitchRate                ! The pitch rate of feed forward control [rad/s]
+    REAL(8)                             :: w_delay                     ! Angular delay frequency [Hz]
+    REAL(8)                             :: f_cutoff                    ! Cut-off frequency [Hz]
+    REAL(8)                             :: w_cutoff                    ! Angular cut-off frequency [Hz]
+    REAL(8)                             :: w_cutoff_PA                 ! Angular cut-off frequency for pitch actuator [Hz]   
+    REAL(8)                             :: w_cutoff_IPC                ! Angular cut-off frequency for IPC [Hz]
+    REAL(8)                             :: w_n                         ! w_delay/w_cutoff 
+    REAL(8)                             :: T_filter                    ! Time delay incurred by LPF on REWS [s]
+    REAL(8)                             :: w_n_PA                      ! w_delay/w_cutoff for pitch actuator
+    REAL(8)                             :: T_PA                        ! Time delay incurred by LPF on pitch actuator [s]
+    REAL(8)                             :: T_buffer                    ! Buffer time required for FF commands [s]
+    REAL(8)                             :: T_filter_IPC                ! Time delay incurred by LPF on FFIPC [s]
+    REAL(8)                             :: w_n_IPC                     ! w_delay/w_cutoff for FFIPC
     ! ----------- LIDAR IPC Variables
     REAL(8), DIMENSION(:,:), ALLOCATABLE  :: REWS_f_IPC                       ! Low pass filtered rotor effective wind speed,  estimated by lidar for feed-forward control, with a buffer size [m/s]    
     REAL(8), DIMENSION(:), ALLOCATABLE    :: REWS_Filtered_IPC
@@ -313,12 +312,9 @@ TYPE, PUBLIC :: LocalVariables
     REAL(8), DIMENSION(:), ALLOCATABLE    :: LeadTime_1_IPC                   ! The leading time of the first measurement plane
     REAL(8), DIMENSION(:), ALLOCATABLE    :: FF_Pitch_IPC                     !the pitch of feed forwad control
     REAL(8), DIMENSION(:), ALLOCATABLE    :: FF_Pitch_old_IPC                 !the previous pitch of feed forwad control
-    REAL(8) , DIMENSION(:), ALLOCATABLE   :: FF_Pitch_Error_IPC               !the error between the pitch of feed forwad control and the current blade pitch
-    REAL(8), DIMENSION(:), ALLOCATABLE    :: FF_Pitch_Error_old_IPC           !the previous pitch of feed forwad control
-    REAL(8), DIMENSION(:), ALLOCATABLE    :: FF_PitchRate_IPC                 !the pitch rate of feed forwad control
-    REAL(DbKi)                            :: IPC_PitComFF(3)                 ! Commanded pitch of each blade as calculated by the feedforward individual pitch controller [rad].
+    REAL(8), DIMENSION(:), ALLOCATABLE    :: IPC_PitComFF                 ! Commanded pitch of each blade as calculated by the feedforward individual pitch controller [rad].
+    REAL(8), DIMENSION(:), ALLOCATABLE    :: IPC_Com_FF                   ! The leading time of the first measurement plane
  
-    
 END TYPE LocalVariables
 
 TYPE, PUBLIC :: ObjectInstances
@@ -363,6 +359,23 @@ TYPE, PUBLIC :: DebugVariables
     REAL(DbKi)                    :: NacVaneOffset               ! Nacelle vane angle with offset [rad].
     REAL(DbKi)                    :: Yaw_err                     ! Yaw error [rad].
     REAL(DbKi)                    :: YawState                    ! State of yaw controller
+    REAL(DbKi)                    :: REWS                        ! LIDAR buffered REWS [m/s]
+    REAL(DbKi)                    :: f_cutoff                    ! 
+    REAL(DbKi)                    :: REWS_f                      ! 
+    REAL(DbKi)                    :: T_filter                    ! 
+    REAL(DbKi)                    :: T_PA                        ! 
+    REAL(DbKi)                    :: T_filter_IPC                ! 
+    REAL(DbKi)                    :: T_buffer                    ! 
+    REAL(DbKi)                    :: REWS_b                    ! 
+    REAL(DbKi)                    :: IPC_Com_1                        ! 
+    REAL(DbKi)                    :: IPC_Com_2                        ! 
+    REAL(DbKi)                    :: IPC_Com_3                        ! 
+    REAL(DbKi)                    :: IPC_Com_1_f                        ! 
+    REAL(DbKi)                    :: IPC_Com_2_f                        ! 
+    REAL(DbKi)                    :: IPC_Com_3_f                        ! 
+    REAL(DbKi)                    :: FF_PitchRate                     ! 
+
+    
 END TYPE DebugVariables
 
 TYPE, PUBLIC :: ErrorVariables
