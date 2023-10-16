@@ -396,7 +396,7 @@ SUBROUTINE Debug(LocalVar, CntrPar, DebugVar, ErrVar, avrSWAP, RootName, size_av
     CHARACTER(15), ALLOCATABLE      :: LocalVarOutStrings(:)
     REAL(DbKi), ALLOCATABLE         :: LocalVarOutData(:)
  
-    nDebugOuts = 24
+    nDebugOuts = 39
     Allocate(DebugOutData(nDebugOuts))
     Allocate(DebugOutStrings(nDebugOuts))
     Allocate(DebugOutUnits(nDebugOuts))
@@ -424,16 +424,34 @@ SUBROUTINE Debug(LocalVar, CntrPar, DebugVar, ErrVar, avrSWAP, RootName, size_av
     DebugOutData(22) = DebugVar%NacVaneOffset
     DebugOutData(23) = DebugVar%Yaw_err
     DebugOutData(24) = DebugVar%YawState
+    DebugOutData(25) = DebugVar%REWS     
+    DebugOutData(26) = DebugVar%f_cutoff
+    DebugOutData(27) = DebugVar%REWS_f
+    DebugOutData(28) = DebugVar%T_filter  
+    DebugOutData(29) = DebugVar%T_PA
+    DebugOutData(30) = DebugVar%T_filter_IPC
+    DebugOutData(31) = DebugVar%T_buffer
+    DebugOutData(32) = DebugVar%REWS_b
+    DebugOutData(33) = DebugVar%IPC_Com_1
+    DebugOutData(34) = DebugVar%IPC_Com_2
+    DebugOutData(35) = DebugVar%IPC_Com_3
+    DebugOutData(36) = DebugVar%IPC_Com_1_f
+    DebugOutData(37) = DebugVar%IPC_Com_2_f
+    DebugOutData(38) = DebugVar%IPC_Com_3_f
+    DebugOutData(39) = DebugVar%FF_PitchRate
     DebugOutStrings = [CHARACTER(15) ::  'WE_Cp', 'WE_b', 'WE_w', 'WE_t', 'WE_Vm', & 
                                       'WE_Vt', 'WE_Vw', 'WE_lambda', 'PC_PICommand', 'GenSpeedF', & 
                                       'RotSpeedF', 'NacIMU_FA_AccF', 'FA_AccF', 'Fl_PitCom', 'PC_MinPit', & 
                                       'axisTilt_1P', 'axisYaw_1P', 'axisTilt_2P', 'axisYaw_2P', 'YawRateCom', & 
-                                      'NacHeadingTarget', 'NacVaneOffset', 'Yaw_err', 'YawState']
+                                      'NacHeadingTarget', 'NacVaneOffset', 'Yaw_err', 'YawState','REWS','f_cutoff', &
+                                       'REWS_f','T_filter','T_PA','T_filter_IPC','T_buffer','REWS_b','IPC_Com_1','IPC_Com_2','IPC_Com_3', &
+                                       'IPC_Com_1_f','IPC_Com_2_f','IPC_Com_3_f', 'FF_Rate' ]
     DebugOutUnits = [CHARACTER(15) ::  '[-]', '[-]', '[-]', '[-]', '[m/s]', & 
                                       '[m/s]', '[m/s]', '[rad]', '[rad]', '[rad/s]', & 
                                       '[rad/s]', '[rad/s]', '[m/s]', '[rad]', '[rad]', & 
                                       '', '', '', '', '[rad/s]', & 
-                                      '[rad]', '[rad]', '[rad]', '']
+                                      '[rad]', '[rad]', '[rad]', '','[m/s]','[rad/s]','[m/s]',&
+                                       '[s]','[s]','[s]','[s]','[m/s]','[rad]','[rad]','[rad]','[rad]','[rad]','[rad]','[rad/s]']
     nLocalVars = 69
     Allocate(LocalVarOutData(nLocalVars))
     Allocate(LocalVarOutStrings(nLocalVars))
