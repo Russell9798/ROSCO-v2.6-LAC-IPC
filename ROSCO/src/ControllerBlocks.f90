@@ -369,119 +369,74 @@ CONTAINS
         
         REAL(IntKi)                                     :: I        !Loop counter
         REAL(ReKi)                                      :: HubHeightCorrectedZ(5)
-        
-        
-  
-        
+         
    IF (LocalVar%SensorType == 1) THEN
                
-             
-            
-        DO I = 1,LocalVar%NumBeam
-            
+        DO I = 1,LocalVar%NumBeam    
          IF (.not. allocated(LocalVar%MsrPosition)) THEN
-             Allocate(LocalVar%MsrPosition(3,5))
-                    
+             Allocate(LocalVar%MsrPosition(3,5))           
+            LocalVar%MsrPosition(1,I) = LocalVar%MsrPositionsX(I)
+            LocalVar%MsrPosition(2,I) = LocalVar%MsrPositionsY(I)
+            LocalVar%MsrPosition(3,I) = LocalVar%MsrPositionsZ(I)   
+         END IF  
             LocalVar%MsrPosition(1,I) = LocalVar%MsrPositionsX(I)
             LocalVar%MsrPosition(2,I) = LocalVar%MsrPositionsY(I)
             LocalVar%MsrPosition(3,I) = LocalVar%MsrPositionsZ(I)
             
-         END IF 
-         
-            LocalVar%MsrPosition(1,I) = LocalVar%MsrPositionsX(I)
-            LocalVar%MsrPosition(2,I) = LocalVar%MsrPositionsY(I)
-            LocalVar%MsrPosition(3,I) = LocalVar%MsrPositionsZ(I)
-            
-                   
-
-         
+           
          !Calculate beam azimuth angles
        
          IF (.not. allocated(LocalVar%BeamAzimuth)) THEN
-             Allocate(LocalVar%BeamAzimuth(5))
-             
+             Allocate(LocalVar%BeamAzimuth(5)) 
              LocalVar%BeamAzimuth(:) = 0 
-         END IF   
-             
-           HubHeightCorrectedZ(I) =   LocalVar%MsrPosition(3,I) -  150   ! NEED TO CREATE AN AVRSWAP VARIABLE FOR HUB HEIGHT
-           
-
-           
+         END IF     
+           HubHeightCorrectedZ(I) =   LocalVar%MsrPosition(3,I) -  CntrPar%Hub_Height  ! NEED TO CREATE AN AVRSWAP VARIABLE FOR HUB HEIGHT
          
-           IF (HubHeightCorrectedZ(I) > 0  .AND. LocalVar%MsrPosition(2,I) > 0) THEN
-               
-                LocalVar%BeamAzimuth(I)  = ATAN(HubHeightCorrectedZ(I)/LocalVar%MsrPosition(2,I))
-            
-           ELSEIF (HubHeightCorrectedZ(I) == 0  .AND. LocalVar%MsrPosition(2,I) > 0) THEN
-               
+          IF (HubHeightCorrectedZ(I) > 0  .AND. LocalVar%MsrPosition(2,I) > 0) THEN    
+                LocalVar%BeamAzimuth(I)  = Pi/2 -  ATAN(HubHeightCorrectedZ(I)/LocalVar%MsrPosition(2,I))
+                
+           ELSEIF (HubHeightCorrectedZ(I) == 0  .AND. LocalVar%MsrPosition(2,I) > 0) THEN  
                 LocalVar%BeamAzimuth(I)  = Pi/2 
-          
-           ELSEIF (HubHeightCorrectedZ(I) < 0  .AND. LocalVar%MsrPosition(2,I) > 0) THEN
-               
-                LocalVar%BeamAzimuth(I)  = ATAN(HubHeightCorrectedZ(I)/LocalVar%MsrPosition(2,I)) + Pi/2
+                
+           ELSEIF (HubHeightCorrectedZ(I) == 0  .AND. LocalVar%MsrPosition(2,I) < 0) THEN  
+                LocalVar%BeamAzimuth(I)  = 3*Pi/2 
+                
+           ELSEIF (HubHeightCorrectedZ(I) < 0  .AND. LocalVar%MsrPosition(2,I) > 0) THEN 
+                LocalVar%BeamAzimuth(I)  = ATAN(ABS(HubHeightCorrectedZ(I))/LocalVar%MsrPosition(2,I)) + Pi/2 
                 
            ELSEIF (HubHeightCorrectedZ(I) < 0  .AND. LocalVar%MsrPosition(2,I) < 0) THEN
-               
-               IF (ABS(HubHeightCorrectedZ(I)) > ABS(LocalVar%MsrPosition(2,I))) THEN
-                   
-                LocalVar%BeamAzimuth(I)  = ATAN(HubHeightCorrectedZ(I)/LocalVar%MsrPosition(2,I)) + Pi/2
-                
-               ELSEIF (ABS(HubHeightCorrectedZ(I)) < ABS(LocalVar%MsrPosition(2,I))) THEN
-                   
-                 LocalVar%BeamAzimuth(I)  = ATAN(HubHeightCorrectedZ(I)/LocalVar%MsrPosition(2,I)) + (3*Pi)/2  
-                 
-               END IF
-
-           ELSEIF (HubHeightCorrectedZ(I) > 0  .AND. LocalVar%MsrPosition(2,I) == 0) THEN
-               
-                LocalVar%BeamAzimuth(I)  = 0
-
-           ELSEIF (HubHeightCorrectedZ(I) < 0  .AND. LocalVar%MsrPosition(2,I) == 0) THEN
-               
-                LocalVar%BeamAzimuth(I)  = Pi
+                LocalVar%BeamAzimuth(I)  = (Pi/2 - ATAN(HubHeightCorrectedZ(I)/LocalVar%MsrPosition(2,I))) + Pi      
                 
            ELSEIF (HubHeightCorrectedZ(I) > 0  .AND. LocalVar%MsrPosition(2,I) < 0) THEN
-               
-                LocalVar%BeamAzimuth(I)  = (3*Pi/2) - ATAN(HubHeightCorrectedZ(I)/LocalVar%MsrPosition(2,I))
+                LocalVar%BeamAzimuth(I)  = ATAN(HubHeightCorrectedZ(I)/ABS(LocalVar%MsrPosition(2,I))) + 3*Pi/2
+
+           ELSEIF (HubHeightCorrectedZ(I) > 0  .AND. LocalVar%MsrPosition(2,I) == 0) THEN 
+                LocalVar%BeamAzimuth(I)  = 0
                 
-           END IF
-           
-                          
+           ELSEIF (HubHeightCorrectedZ(I) < 0  .AND. LocalVar%MsrPosition(2,I) == 0) THEN
+                LocalVar%BeamAzimuth(I)  = Pi                 
+           END IF 
         END DO 
-        
+              
         !REWS
         LocalVar%LidSpeed(1) = (LocalVar%LidSpeed(1) + LocalVar%LidSpeed(2) + LocalVar%LidSpeed(3) + LocalVar%LidSpeed(4) + LocalVar%LidSpeed(5))/LocalVar%NumBeam
-      
-        
-        ELSE IF (LocalVar%SensorType == 2) THEN
-            
-  
-            
-         IF (.not. allocated(LocalVar%MsrPosition)) THEN
-             Allocate(LocalVar%MsrPosition(3,1))
-                 
-             LocalVar%MsrPosition(1,1) = LocalVar%MsrPositionsX(1)
-             LocalVar%MsrPosition(2,1) = LocalVar%MsrPositionsY(1)
-             LocalVar%MsrPosition(3,1) = LocalVar%MsrPositionsZ(1)
-             
-             
-             
-         END IF 
-         
-             LocalVar%MsrPosition(1,1) = LocalVar%MsrPositionsX(1)
-             LocalVar%MsrPosition(2,1) = LocalVar%MsrPositionsY(1)
-             LocalVar%MsrPosition(3,1) = LocalVar%MsrPositionsZ(1)
-             
-  
-             
-            
-             
-        ELSE IF (LocalVar%SensorType == 3) THEN
-            
-       
-            
-          DO I = 1,LocalVar%NumPulseGate
               
+        ELSE IF (LocalVar%SensorType == 2) THEN
+       
+         IF (.not. allocated(LocalVar%MsrPosition)) THEN
+             Allocate(LocalVar%MsrPosition(3,1))      
+             LocalVar%MsrPosition(1,1) = LocalVar%MsrPositionsX(1)
+             LocalVar%MsrPosition(2,1) = LocalVar%MsrPositionsY(1)
+             LocalVar%MsrPosition(3,1) = LocalVar%MsrPositionsZ(1)        
+         END IF  
+             LocalVar%MsrPosition(1,1) = LocalVar%MsrPositionsX(1)
+             LocalVar%MsrPosition(2,1) = LocalVar%MsrPositionsY(1)
+             LocalVar%MsrPosition(3,1) = LocalVar%MsrPositionsZ(1)    
+        
+        ELSE IF (LocalVar%SensorType == 3) THEN
+
+        DO I = 1,LocalVar%NumPulseGate
+      
            IF (.not. allocated(LocalVar%MsrPosition)) THEN
              Allocate(LocalVar%MsrPosition(3,5))   
               
@@ -494,19 +449,13 @@ CONTAINS
             LocalVar%MsrPosition(1,I) = LocalVar%MsrPositionsX(1) - ((I - 1)*LocalVar%PulseSpacing)
             LocalVar%MsrPosition(2,I) = LocalVar%MsrPositionsY(1)
             LocalVar%MsrPosition(3,I) = LocalVar%MsrPositionsZ(1)
-            
-     
-            
-          END DO   
-           
-          
-          
-      
+                        
+         END DO   
+       
             LocalVar%LidSpeed(1) = (LocalVar%LidSpeed(1) + LocalVar%LidSpeed(2) + LocalVar%LidSpeed(3) + LocalVar%LidSpeed(4) + LocalVar%LidSpeed(5))/LocalVar%NumPulseGate
           
-         END IF
+        END IF
         
- 
         
      END SUBROUTINE LidarConfiguration        
 !-------------------------------------------------------------------------------------------------------------------------------
